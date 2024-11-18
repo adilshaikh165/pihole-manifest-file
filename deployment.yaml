@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: pihole
+  name: pihole
+  namespace: pihole
+  volumes:
+      - name: pihole-config
+        persistentVolumeClaim:
+          claimName: pihole-pvc
+      - name: adlists
+        configMap:
+          name: adlists.list
+          items:
+            - key: adlists.list
+              path: adlists.list
+      - name: customlist
+        configMap:
+          name: custom.list
+          items:
+            - key: custom.list
+              path: custom.list
+  containers:
+      - name: cloudflared
+        image: visibilityspots/cloudflared:v2024.3.0
+        env:
+        - name: PORT
+          value: "5053"
+        resources:
+          requests:
+            memory: "50Mi"
+            cpu: "250m"
+          limits:
+            memory: "100Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 5053
+          name: cf-tcp
+          protocol: TCP
+        - containerPort: 5053
+          name: cf-udp
+          protocol: UDP
+      - name: pihole
+        image: pihole/pihole:2023.10.0
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "50Mi"
+            cpu: "250m"
+          limits:
+            memory: "100Mi"
+            cpu: "500m"
+        env:
+        - name: TZ
+          value: Asia/Calcutta
+        - name: WEBPASSWORD
+          value: bingo!!
+        - name: DNS1
+          value: 127.0.0.1#5053
+        - name: DNSMASQ_LISTENING
+          value: all
+        - name: FTLCONF_CHECK_DISK
+          value: "0"
+        ports:
+        - containerPort: 53
+          name: pihole-dns-tcp
+          protocol: TCP
+        - containerPort: 53
+          name: pihole-dns-udp
+          protocol: UDP
+        - containerPort: 67
+          name: pihole-67-udp
+          protocol: UDP
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 443
+          name: https
+          protocol: TCP
+        volumeMounts:
+        - name: etc-pihole
+          mountPath: /etc/pihole
+        - name: etc-dnsmasq
+          mountPath: /etc/dnsmasq.d
+        - name: adlists
+          mountPath: /etc/pihole/adlists.list
+          subPath: adlists.list
+        - name: customlist
+          mountPath: /etc/pihole/custom.list
+          subPath: custom.list
